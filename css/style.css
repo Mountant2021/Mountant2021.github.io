@@ -54,7 +54,8 @@ nav a:hover {
 .submenu {
   display: none;
   position: absolute;
-  top: 100%; /* tránh khoảng hở */
+  top: 100%;
+  /* tránh khoảng hở */
   left: 0;
   background: #111;
   border: 1px solid #333;
@@ -64,7 +65,7 @@ nav a:hover {
   min-width: 160px;
 }
 
-.dropdown:hover > .submenu,
+.dropdown:hover>.submenu,
 .submenu:hover {
   display: block;
 }
@@ -160,4 +161,14 @@ button:hover {
   font-size: 14px;
   border: 1px solid #333;
   border-radius: 6px;
+}
+
+.typewriter {
+  font-size: 2.5rem;
+  font-weight: 600;
+  border-right: 2px solid #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  width: fit-content;
+  padding-right: 5px;
 }
