@@ -8,7 +8,7 @@ body {
 header {
   background-color: #111;
   border-bottom: 1px solid #333;
-  padding: 10px 20px;
+  padding: 10px 10%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -50,18 +50,22 @@ nav a:hover {
   color: #4864e6;
 }
 
+/* Submenu Fix */
 .submenu {
   display: none;
   position: absolute;
+  top: 100%; /* tránh khoảng hở */
+  left: 0;
   background: #111;
   border: 1px solid #333;
-  margin-top: 8px;
   padding: 10px;
   border-radius: 4px;
   z-index: 999;
+  min-width: 160px;
 }
 
-.dropdown:hover .submenu {
+.dropdown:hover > .submenu,
+.submenu:hover {
   display: block;
 }
 
@@ -94,7 +98,8 @@ label {
   flex-grow: 1;
 }
 
-select, button {
+select,
+button {
   font-size: 16px;
   padding: 10px;
   border-radius: 6px;

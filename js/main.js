@@ -10,8 +10,13 @@ async function loadPyodideAndScript() {
 
 async function runPythonConversion() {
     const xmlInput = editorOld.getValue();
+    const selectedVersion = document.getElementById("odooVersion").value;
+
     pyodide.globals.set("input_xml", xmlInput);
-    const result = await pyodide.runPythonAsync("convert_xml_string(input_xml)");
+
+    const pyFunc = selectedVersion === "18" ? "convert_xml_odoo18" : "convert_xml_odoo17";
+    const result = await pyodide.runPythonAsync(`${pyFunc}(input_xml)`);
+
     editorNew.setValue(result);
 }
 

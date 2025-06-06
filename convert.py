@@ -2,43 +2,45 @@ import xml.etree.ElementTree as ET
 import ast
 from xml.dom import minidom
 
-def parse_domain_prefix_tree(domain, operator):
-    def parse(it):
-        token = next(it)
-        if token in ('&', '|'):
-            op = 'and' if token == '&' else 'or'
-            left = parse(it)
-            right = parse(it)
-            return f"({left} {op} {right})"
-        elif isinstance(token, tuple) and len(token) == 3:
-            field, oper, value = token
-            return f"{field} {operator.get(oper, oper)} {repr(value)}"
-        else:
-            return str(token)
-    return parse(iter(domain))
-
 def convert_to_17_format(domain, operator):
-    if isinstance(domain, list):
-        try:
-            if domain and domain[0] in ('&', '|'):
-                return parse_domain_prefix_tree(domain, operator)
-            elif all(isinstance(item, tuple) and len(item) == 3 for item in domain):
-                return " and ".join(
-                    f"{f} {operator.get(o, o)} {repr(v)}" for f, o, v in domain
-                )
-            elif isinstance(domain[0], tuple):
-                f, o, v = domain[0]
-                return f"{f} {operator.get(o, o)} {repr(v)}"
-        except Exception as e:
-            return f"<parse_error: {e}>"
-    elif isinstance(domain, tuple) and len(domain) == 3:
-        f, o, v = domain
-        return f"{f} {operator.get(o, o)} {repr(v)}"
-    elif isinstance(domain, bool):
+    if isinstance(domain, bool):
         return str(domain).lower()
+    elif isinstance(domain, list):
+        if len(domain) == 0:
+            return ''
+        if len(domain) == 1 and isinstance(domain[0], tuple):
+            field, oper, value = domain[0]
+            value = f"'{value}'" if isinstance(value, str) else value
+            return f"{field} {operator.get(oper, oper)} {value}"
+        elif all(isinstance(i, tuple) and len(i) == 3 for i in domain):
+            return " and ".join(
+                f"{f} {operator.get(o, o)} {repr(v)}" for f, o, v in domain
+            )
+        else:
+            # handle &, |, &
+            stack = []
+            i = 0
+            while i < len(domain):
+                if domain[i] in ('&', '|'):
+                    op = 'and' if domain[i] == '&' else 'or'
+                    left = domain[i + 1]
+                    right = domain[i + 2]
+                    left_expr = convert_to_17_format([left], operator)
+                    right_expr = convert_to_17_format([right], operator)
+                    stack.append(f"({left_expr} {op} {right_expr})")
+                    i += 3
+                else:
+                    i += 1
+            return " and ".join(stack)
     return str(domain)
 
-def convert_xml_string(xml_str):
+def convert_xml_odoo17(xml_str):
+    return _convert_xml_core(xml_str, version="17")
+
+def convert_xml_odoo18(xml_str):
+    return _convert_xml_core(xml_str, version="18")
+
+def _convert_xml_core(xml_str, version="17"):
     operator = {
         '=': '==', '>=': '>=', '<=': '<=', '>': '>', '<': '<',
         'in': 'in', 'not in': 'not in', '!=': '!=', '<>': '!='
@@ -52,6 +54,7 @@ def convert_xml_string(xml_str):
     elements_to_add = []
 
     for parent in root.iter():
+        # Inline attrs
         if 'attrs' in parent.attrib:
             try:
                 raw = parent.attrib['attrs']
@@ -63,6 +66,7 @@ def convert_xml_string(xml_str):
             except Exception as e:
                 parent.set('attrs_error', str(e))
 
+        # <attribute name="attrs">
         for i, child in enumerate(list(parent)):
             if child.tag == "attribute" and child.attrib.get("name") == "attrs":
                 try:
@@ -81,29 +85,28 @@ def convert_xml_string(xml_str):
     for parent, index, new_elem in elements_to_add:
         parent.insert(index, new_elem)
 
+    # states
     for elem in root.iter():
         if 'states' in elem.attrib:
             states = [f"'{s.strip()}'" for s in elem.attrib['states'].split(',')]
             expr = f"state not in [{', '.join(states)}]"
-
-            has_invisible_tag = any(
-                child.tag == 'attribute' and child.attrib.get('name') == 'invisible'
-                for child in list(elem)
-            )
-
             if 'invisible' in elem.attrib:
                 elem.set('invisible', f"{elem.attrib['invisible']} or {expr}")
-            elif not has_invisible_tag:
+            else:
                 elem.set('invisible', expr)
-
             del elem.attrib['states']
 
+    # Odoo 18-specific
+    if version == "18":
+        for elem in root.iter():
+            if elem.tag == "tree":
+                elem.tag = "list"
+            if elem.tag == "list" and elem.attrib.get("editable") == "1":
+                elem.set("editable", "bottom")
+
+    # Pretty print (no <?xml version)
     raw_str = ET.tostring(root, encoding='utf-8')
     reparsed = minidom.parseString(raw_str)
     pretty = reparsed.toprettyxml(indent="    ")
-
-    clean_lines = [
-        line for line in pretty.split('\n')
-        if line.strip() and not line.strip().startswith('<?xml')
-    ]
+    clean_lines = [line for line in pretty.split('\n') if line.strip() and not line.strip().startswith('<?xml')]
     return '\n'.join(clean_lines)
